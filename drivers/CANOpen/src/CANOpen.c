@@ -1,0 +1,6 @@
+
+
+void canOpenInit(void)
+{
+    
+}
