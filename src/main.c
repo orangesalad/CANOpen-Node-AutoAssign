@@ -46,11 +46,14 @@ int main(void)
     // nodes are ready to perform LSS actions 
     sendGlobalLSSState(WAIT);
 	
-	printf("Hello World\r\n");
+	printf("Starting FastScan...\r\n");
 
     // Perform algo to identify all slave nodes.
-	int nodesFound = fastScan(canSock, 0);
+	int nodesFound = fastScan(canSock, 1);
 
+	printf( "%d Nodes Found\n", nodesFound);
+
+	
 
 
 
