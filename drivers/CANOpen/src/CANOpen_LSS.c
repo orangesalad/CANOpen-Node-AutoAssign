@@ -1,3 +1,25 @@
+/*
+ * Copyright (C) 2020 Ryan Higdon. All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+
 #include "CANOpen_LSS.h"
 
 #include <stdio.h>
@@ -127,16 +149,7 @@ static uint32_t findLSSPart(int sock, uint32_t *lssPart, uint8_t *_lssSub, uint8
     }
 
     printf("Found Value: 0x%X\n", *lssPart);
-      
-    
-    //tx.data[LSS_NEXT] = (*_lssNext);
-    // for( int j = 1; j < 5; j++ )
-    //     tx.data[j] = (uint8_t)( 0xFF & ( (*lssPart) >> (j - 1)*8) );
-
-    // //Write whole VID and nextSub
-    // writeBytes = write(sock, &tx, sizeof( struct can_frame ));
-    // //Wait 10ms for response
-    // readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);   
+        
     (*_lssSub)++;
     return 0;
 }
@@ -158,8 +171,6 @@ void sendGlobalLSSState(int sock, enum LSSState state)
         f.data[1] = 0;
     else //Config mode
         f.data[1] = 1;
-
-            
 
     int writeBytes = write(sock, &f, sizeof( struct can_frame ));
 
@@ -198,11 +209,11 @@ int fastScan(int canSock, uint8_t nodeId)
 
         // Scan for VID
         findLSSPart(canSock, &id.vendorId, &lssSub, &lssNext);
-
+        // Scan for PID
         findLSSPart(canSock, &id.productCode, &lssSub, &lssNext);
-
+        // Scan for Rev
         findLSSPart(canSock, &id.revision, &lssSub, &lssNext);
-
+        // Scan for SN
         findLSSPart(canSock, &id.serialNum, &lssSub, &lssNext);
 
         // clear can frame
@@ -244,25 +255,9 @@ int fastScan(int canSock, uint8_t nodeId)
                 return 1;
             }
         } 
-        
-        
     }
 
     return 0;
 
     
-}
-
-
-
-
-static uint32_t scanVid( struct can_frame *f )
-{
-
-}
-
-int static isValidLSSSlaveResponse(struct can_frame *rcvFrame)
-{
-
-    return 0;
 }
