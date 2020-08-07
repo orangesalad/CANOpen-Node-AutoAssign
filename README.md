@@ -2,7 +2,7 @@
 
 ## This software is meant to implement the LSS FastScan algorithm, as part of the CANOpen standard
 
-### Introduction
+## Introduction
 The Fastscan implemenetation is a way to detect remote nodes on a bus. It takes advantage of the fact that every remote node should have a globally unique LSS ID which can be used to identify it on the bus. 
 
 ## Environment
