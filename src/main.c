@@ -55,17 +55,17 @@ int main(void)
 	if(canSock < 1)
 	 return canSock;
 
-    // Slave Nodes are assumed to be started and in "PRE-OPERAITONAL" state after boot up
-    // We should get some NMT Boot messages but we cannot know what nodes are there as
-    // They will all have same Node ID
-    canOpenInit();
+	// Slave Nodes are assumed to be started and in "PRE-OPERAITONAL" state after boot up
+	// We should get some NMT Boot messages but we cannot know what nodes are there as
+	// They will all have same Node ID
+	canOpenInit();
 
-    // Put all slave nodes into NMT STOPPED state. They must be in this state to use LSS
-    sendNMTState(canSock, 0, STOPPED);
+	// Put all slave nodes into NMT STOPPED state. They must be in this state to use LSS
+	sendNMTState(canSock, 0, STOPPED);
 
-    // Put all slaves into LSS Wait state. In this we cannot change slave Node ID but 
-    // nodes are ready to perform LSS actions 
-    sendGlobalLSSState(canSock, WAIT);
+	// Put all slaves into LSS Wait state. In this we cannot change slave Node ID but 
+	// nodes are ready to perform LSS actions 
+	sendGlobalLSSState(canSock, WAIT);
 	
 	printf("Starting FastScan...\r\n");
 
