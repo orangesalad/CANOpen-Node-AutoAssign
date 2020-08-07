@@ -120,40 +120,40 @@ int main(void)
 /// Configured for Linux, in normal operation this would setup MCU periph
 static int canBusInit(void)
 {
-	int sock;
-	struct sockaddr_can addr;
-	struct can_frame frame;
-	struct ifreq ifr;
-	struct timeval tv;
-	tv.tv_sec = 0;
-	tv.tv_usec = 100000; //100ms
-	
+    int sock;
+    struct sockaddr_can addr;
+    struct can_frame frame;
+    struct ifreq ifr;
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000; //100ms
 
-	// This should change depending on boards interface
-	const char *ifname = "vcan0";
 
-	if((sock = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {
-		perror("Error while opening socket");
-		return -1;
-	}
+    // This should change depending on boards interface
+    const char *ifname = "vcan0";
 
-	strcpy(ifr.ifr_name, ifname);
-	ioctl(sock, SIOCGIFINDEX, &ifr);
-	
-	addr.can_family  = AF_CAN;
-	addr.can_ifindex = ifr.ifr_ifindex;
+    if((sock = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {
+        perror("Error while opening socket");
+        return -1;
+    }
 
-	if(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		perror("Error in socket bind");
-		return -2;
-	}
+    strcpy(ifr.ifr_name, ifname);
+    ioctl(sock, SIOCGIFINDEX, &ifr);
+
+    addr.can_family  = AF_CAN;
+    addr.can_ifindex = ifr.ifr_ifindex;
+
+    if(bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("Error in socket bind");
+        return -2;
+    }
     printf("Opened Socket %d\n", sock);
 
-	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-    
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
     canSock = sock;
 
-	return sock;
+    return sock;
 }
 
 /// This would populate from EEPROM in the MCU
@@ -183,10 +183,10 @@ int sendBootMessage(int sock)
     bootMsg.data[0] = 0;
 
     int writeBytes = write(sock, &bootMsg, sizeof( struct can_frame ));
-    
+
     if( writeBytes <  0 )
         return 0;
-    
+
     return 1;
 
 }
@@ -208,7 +208,7 @@ void NMTStartup(void)
     //load LSS and NodeID from non-volatile
     loadValues(LSSId);
     int rtn = sendBootMessage(sock); 
-    
+
     if( rtn )
     {
         actionState = &NMTPreOperational;
@@ -222,7 +222,6 @@ void NMTStartup(void)
 
 void NMTPreOperational(void)
 {
-
     // We recieved global or our node id NMT Message
     if( frameValid && canRx.can_id == 0 && ( canRx.data[1] == NodeId || canRx.data[1] == 0 ))
     {
