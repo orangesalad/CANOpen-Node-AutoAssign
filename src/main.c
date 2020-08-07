@@ -75,7 +75,7 @@ int main(void)
 	
 	while( currentScanNodes && i < MAX_SLAVE_NODES )
 	{
-		currentScanNodes = fastScan(canSock, i);
+		currentScanNodes = fastScan(&slaveNodes[i - 1], canSock, i);
 		if( currentScanNodes )
 		{
 			printf("Found new Node. Assigned ID: %d\n", i);
@@ -84,10 +84,17 @@ int main(void)
 		i++; 
 	}
     
-	// Perform algo to identify all slave nodes.
-	//int nodesFound = fastScan(canSock, 1);
-
 	printf( "%d Nodes Found\n", nodesFound);
+
+	for( int x = 0; x < nodesFound; x++ )
+	{
+		printf("Node%d:\nVendorID=0x%X\nProd ID=0x%X\nRevision=0x%X\nSN=0x%X\n", \
+			x + 1, \
+			slaveNodes[x].vendorId, \
+			slaveNodes[x].productCode, \
+			slaveNodes[x].productCode, \
+			slaveNodes[x].serialNum);
+	}
 	
 	return 0;
 }

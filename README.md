@@ -15,3 +15,11 @@ sudo ip link set up vcan0
 ```
 
 Now if you run `ifconfig` you should see the virtual CAN interface. 
+
+## Demonstration
+To demo the software, you can use the file in the `firmware/` directory. This file compiles for a Linux target, using the Linux CAN syscalls. In normal operation, this file would be refactored to run on a remote node which would be an MCU. You can build the firmware using `make` in the firmware directory. 
+
+The binary can be run many times as it uses `rand()` to generate different LSS Id's for each process. With many 'nodes' running, you can then execute the Auto Adressing software and observe the remote nodes being detected. 
+
+# Possible Improvements
+1. Instead of scanning randomly, it would be best to store all previously found Vendor ID's and Product codes locally in a file, as it is probable that these types of devices would be the most to added into a system. These values would be scanned for first, and any unkown values after if needed. 

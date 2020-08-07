@@ -147,8 +147,6 @@ static uint32_t findLSSPart(int sock, uint32_t *lssPart, uint8_t *_lssSub, uint8
                 (*_lssNext)++;  
         }
     }
-
-    printf("Found Value: 0x%X\n", *lssPart);
         
     (*_lssSub)++;
     return 0;
@@ -177,7 +175,7 @@ void sendGlobalLSSState(int sock, enum LSSState state)
 
 }
 
-int fastScan(int canSock, uint8_t nodeId)
+int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
 {
     struct can_frame readFrame;
     // Frame structure: B0:0x81, B1-4:ID#, B5:BitMask
@@ -252,6 +250,12 @@ int fastScan(int canSock, uint8_t nodeId)
                 lssMstrMsg.data[CS] = 0x4;
                 //Send store
                 writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
+                
+                _id->vendorId = id.vendorId;
+                _id->productCode = id.productCode;
+                _id->revision = id.revision;
+                _id->serialNum = id.serialNum; 
+                
                 return 1;
             }
         } 

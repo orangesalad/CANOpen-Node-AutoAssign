@@ -44,6 +44,6 @@ struct LSSId {
 
 void sendGlobalLSSState(int sock, enum LSSState state);
 
-int fastScan(int canSock, uint8_t nodeId);
+int fastScan(struct LSSId *id, int canSock, uint8_t nodeId);
 
 #endif

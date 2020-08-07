@@ -106,7 +106,7 @@ int main(void)
     int readBytes = 0;
 
     actionState = &NMTStartup;
-    printf("Starting state machine\n");
+
     while(1)
     {
         (*actionState)();
@@ -147,7 +147,6 @@ static int canBusInit(void)
         perror("Error in socket bind");
         return -2;
     }
-    printf("Opened Socket %d\n", sock);
 
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
@@ -167,8 +166,14 @@ void loadValues(volatile uint32_t lss[])
     lss++;
     *lss = sn;
     lss++;
-    for( int i = 0; i < 4; i++)
-        printf("0x%X\n", LSSId[i] );
+    int x = 0;
+    printf("Vendor ID: 0x%X\n", LSSId[x]);
+    x++;
+    printf("Product ID: 0x%X\n", LSSId[x]);
+    x++;
+    printf("Revision: 0x%X\n", LSSId[x]);
+    x++;
+    printf("Serial: 0x%X\n", LSSId[x]);   
     // On first boot node IS is 0xff. simulate for now
     NodeId = 0xff;
 
