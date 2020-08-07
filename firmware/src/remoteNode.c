@@ -32,27 +32,36 @@ volatile uint8_t NodeId;
 struct can_frame canRx;
 volatile int frameValid;
 
-// NMT States
+/* NMT States */
+///State entered  on first boot. Sends boot message on bus before pre-op
 void NMTStartup(void);
+///After system (CANbus, GPIO...) is setup 
 void NMTPreOperational(void);
+///Stop most functiality. We can go to LSS from Stopped
 void NMTStopped(void);
+///Normal operation, read gpios, etc.
 void NMTOperational(void);
+///Hard reset of node
 void NMTResetNode(void);
+///Resets canopen interface with new Node ID/baud
 void NMTResetComms(void);
 
-//LSS States
+/* LSS States */
+///Idle LSS state, cannot change Node ID from this state
 void LSSWait(void);
+///LSS Configuration, only one node can be in config at a time, full access.
 void LSSConfig(void);
 
-//fastCanStates
+/* FastScan States */
 void FastScanVID(void);
 void FastScanProdId(void);
 void FastScanRev(void);
 void FastScanSN(void);
 
-// fxn pointer for current state
+///fxn pointer for current state
 void (*actionState)(void);
 
+///Global CAN interface socket for Linux
 volatile int canSock = 0;
 
 int main(void)
@@ -87,6 +96,7 @@ int main(void)
 	return 0;
 }
 
+/// Configured for Linux, in normal operation this would setup MCU periph
 static int canBusInit(void)
 {
 	int sock;
@@ -125,6 +135,7 @@ static int canBusInit(void)
 	return sock;
 }
 
+/// This would populate from EEPROM in the MCU
 void loadValues(volatile uint32_t lss[])
 {
     *lss = vid;
@@ -137,11 +148,12 @@ void loadValues(volatile uint32_t lss[])
     lss++;
     for( int i = 0; i < 4; i++)
         printf("0x%X\n", LSSId[i] );
-    // On first boot node IS is 0xff
+    // On first boot node IS is 0xff. simulate for now
     NodeId = 0xff;
 
 }
 
+/// Sends initial boot message after setup and before pre-op state
 int sendBootMessage(int sock)
 {
     struct can_frame bootMsg;
@@ -158,18 +170,19 @@ int sendBootMessage(int sock)
 
 }
 
+///Store to EEPROM, would be some I2C or other implementation
 void writeToEEPROM(int id)
 {
     //Implementation of non-volatile storage...
+    NodeId = id;
 }
 
 
-// NMT States
+/*********************** NMT States ***********************/
 void NMTStartup(void)
 {    
     //init can peripheral
     canBusInit();
-    printf("SockAddress: %d\n", canSock);
     int sock  = canSock;
     //load LSS and NodeID from non-volatile
     loadValues(LSSId);
@@ -184,6 +197,7 @@ void NMTStartup(void)
     //     actionState = error;
 
 }
+
 
 void NMTPreOperational(void)
 {
@@ -208,7 +222,8 @@ void NMTPreOperational(void)
         frameValid = 0;
     }
 }
-//In stopped, we can do LSS
+
+
 void NMTStopped(void)
 {
     // Recieved LSS Switch to config
@@ -220,6 +235,7 @@ void NMTStopped(void)
         frameValid = 0;
     }
 }
+
 void NMTOperational(void)
 {
     /* Do GPIO Things... wait for CAN commands... */
@@ -235,7 +251,7 @@ void NMTResetComms(void)
     // Do not fully reset, just reset with new baud and node id settings 
 }
 
-/*********** LSS States ************/
+/*********************** LSS States ***********************/
 void LSSWait(void)
 {
     // recieved message to trasition into LSS Config mode
@@ -341,7 +357,7 @@ void LSSConfig(void)
     }    
 }
 
-//fastCanStates
+/*********************** FastScan States ***********************/
 void FastScanVID(void)
 {
     struct can_frame lssResponse;
