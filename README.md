@@ -6,7 +6,7 @@
 The Fastscan implemenetation is a way to detect remote nodes on a bus. It takes advantage of the fact that every remote node should have a globally unique LSS ID which can be used to identify it on the bus. 
 
 ## Environment
-This software is designed to be run on a linux target. At the moment the Makefile uses GCC, so if you have that you can build the software using `make`. The binary will be placed in the `/build` directory. You will also need to have a working CAN interface to run the software. If you are on Linux, you can create a virtual CAN interface by doing the following: 
+The software is designed to be run on a linux target. At the moment the Makefile uses GCC, so if you have that you can build the software using `make`. The binary will be placed in the `/build` directory. You will also need to have a working CAN interface to run the software. If you are on Linux, you can create a virtual CAN interface by doing the following: 
 
 ```
 sudo modprobe vcan
