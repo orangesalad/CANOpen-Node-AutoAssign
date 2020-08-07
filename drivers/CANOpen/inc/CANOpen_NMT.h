@@ -2,6 +2,7 @@
 #define __CANOPEN_NMT_H__
 
 #include <linux/can.h>
+#include <unistd.h>
 #include <assert.h>
 
 enum NMTState{
@@ -12,7 +13,7 @@ enum NMTState{
 };
 
 
-void sendNMTState(unsigned int nodeID, enum NMTState state);
+void sendNMTState(int sock, unsigned int nodeID, enum NMTState state);
 
 #endif
 

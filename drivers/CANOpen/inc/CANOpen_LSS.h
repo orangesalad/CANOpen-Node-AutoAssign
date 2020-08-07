@@ -21,7 +21,7 @@ struct LSSId {
 
 };
 
-void sendGlobalLSSState(enum LSSState state);
+void sendGlobalLSSState(int sock, enum LSSState state);
 
 int fastScan(int canSock, uint8_t nodeId);
 

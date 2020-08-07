@@ -47,13 +47,26 @@ static int sendGlobalLSSIdentify(int sock)
     //Send initial Slave Identify msg
     int writeBytes = write(sock, &lssGlobalIdent, sizeof( struct can_frame ));
     // wait 10ms for response from slaves
-    int readBytes = recv(sock, &readFrame, sizeof( struct can_frame), 0);
+    volatile int readBytes = 1;
+    volatile int i = 0;
+    int nodeFound = 0;
+    // read bus but also make sure we flush extra messages
+    while(readBytes > 0 && i < 127)
+    {
+        readBytes = recv(sock, &readFrame, sizeof( struct can_frame), 0);
+        if( readBytes > 0 )
+            nodeFound = 1;
+        i++;
+    } 
     
+
     // CAN Read timed out after 10ms, no remotes found
-    if(readBytes < 0 && errno == EAGAIN)
-        return -1;
+    if( !nodeFound )
+        return 0;
     else if( readFrame.can_id == 0x7E4 && readFrame.data[0] == 0x4F) 
         return 1;
+
+    return 0;
 
 }
 
@@ -68,32 +81,44 @@ static uint32_t findLSSPart(int sock, uint32_t *lssPart, uint8_t *_lssSub, uint8
     tx.can_id = LSSMasterMessageId;
     tx.can_dlc = 8;
     
+    //clear data 
     for( int i = 0; i < 8; i++ )
         tx.data[i] = 0;
 
     tx.data[CS] = 0x81;
     tx.data[LSS_SUB] = *_lssSub;
-    tx.data[LSS_NEXT] = *_lssNext;
 
-    for( uint32_t i = 0; i < 32; i++ )
+    //iterate over bits of lss part
+    for( int i = 0; i < 32; i++ )
     {
+        tx.data[LSS_NEXT] = *_lssNext;
+
         for( int j = 1; j < 5; j++ )
             tx.data[j] = (uint8_t)( 0xFF & ( (*lssPart) >> (j - 1)*8) );
         
         tx.data[BITCHECK] = bitcheckStart - i;
-        //Write LSS Identify VID msg
+        //Write LSS Identify msg
         writeBytes = write(sock, &tx, sizeof( struct can_frame ));
         //Wait 10ms for response
-        readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);
-        
+        volatile int readBytes = 1;
+        volatile int x = 0;
+        int nodeFound = 0;
+        // read bus but also make sure we flush extra messages
+        while(readBytes > 0 && x < 127)
+        {
+            readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);
+            if( readBytes > 0 )
+                nodeFound = 1;
+            x++;
+        } 
         // If we don't get response we know current Bitcheck bit is 1
-        if( readBytes < 0 )
+        if( !nodeFound )// !nodeFound )
         {
-            *lssPart |= (1UL << i);
+            *lssPart |= (1UL << i); 
         }
-        
-        if( i == 31 )
+        if( bitcheckStart - i == 1 )
         {
+            
             if( *_lssSub == 3 && *_lssNext == 3)
                 (*_lssNext) = 0;
             else
@@ -104,21 +129,41 @@ static uint32_t findLSSPart(int sock, uint32_t *lssPart, uint8_t *_lssSub, uint8
     printf("Found Value: 0x%X\n", *lssPart);
       
     
-    tx.data[LSS_NEXT] = (*_lssNext);
-    for( int j = 1; j < 5; j++ )
-        tx.data[j] = (uint8_t)( 0xFF & ( (*lssPart) >> (j - 1)*8) );
+    //tx.data[LSS_NEXT] = (*_lssNext);
+    // for( int j = 1; j < 5; j++ )
+    //     tx.data[j] = (uint8_t)( 0xFF & ( (*lssPart) >> (j - 1)*8) );
 
-    //Write whole VID and nextSub
-    writeBytes = write(sock, &tx, sizeof( struct can_frame ));
-    //Wait 10ms for response
-    readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);   
+    // //Write whole VID and nextSub
+    // writeBytes = write(sock, &tx, sizeof( struct can_frame ));
+    // //Wait 10ms for response
+    // readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);   
     (*_lssSub)++;
     return 0;
 }
 
-void sendGlobalLSSState(enum LSSState state)
+void sendGlobalLSSState(int sock, enum LSSState state)
 {
+    struct can_frame f;
     
+    f.can_id = LSSMasterMessageId;
+    f.can_dlc = 8;
+    // zero data
+    for( int i = 0; i < 8; i++)
+        f.data[i] = 0;
+    
+
+    f.data[0] = 4;
+
+    if( state == WAIT )
+        f.data[1] = 0;
+    else //Config mode
+        f.data[1] = 1;
+
+            
+
+    int writeBytes = write(sock, &f, sizeof( struct can_frame ));
+
+
 }
 
 int fastScan(int canSock, uint8_t nodeId)
@@ -127,6 +172,8 @@ int fastScan(int canSock, uint8_t nodeId)
     // Frame structure: B0:0x81, B1-4:ID#, B5:BitMask
     //                  B6:LSSSub, B7:LSSNext 
     struct can_frame lssMstrMsg;
+    lssMstrMsg.can_id = LSSMasterMessageId;
+    lssMstrMsg.can_dlc = 8;
     int writeBytes = 0;
     int readBytes = 0;
     
@@ -149,149 +196,14 @@ int fastScan(int canSock, uint8_t nodeId)
         id.revision = 0;
         id.serialNum = 0;
 
-
+        // Scan for VID
         findLSSPart(canSock, &id.vendorId, &lssSub, &lssNext);
-        printf("%d, %d\n",lssNext, lssSub);
-        //Scan VID
-        // for( uint32_t i = 0; i < 32; i++ )
-        // {
-        //     for( int j = 1; j < 5; j++ )
-        //         lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.vendorId >> (j - 1)*8) );
-            
-        //     lssMstrMsg.data[BITCHECK] = bitcheckStart - i;
-        //     //Write LSS Identify VID msg
-        //     writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        //     //Wait 10ms for response
-        //     readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);
-            
-        //     // If we don't get response we know current Bitcheck bit is 1
-        //     if( readBytes < 0 )
-        //     {
-        //         id.vendorId |= (1UL << i);
-        //     }
-        // }
-        // printf("Found Vend Id: 0x%X\n", id.vendorId);
-        // lssNext++;
 
-        // lssMstrMsg.data[LSS_NEXT] = lssNext;
-        // for( int j = 1; j < 5; j++ )
-        //     lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.vendorId >> (j - 1)*8) );
-
-        // //Write whole VID and nextSub
-        // writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        // //Wait 10ms for response
-        // readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);        
-        
-        // lssSub++;
-        // lssMstrMsg.data[LSS_SUB] = lssSub;
         findLSSPart(canSock, &id.productCode, &lssSub, &lssNext);
-        printf("%d, %d\n",lssNext, lssSub);
-        // id.productCode = 0;
-        // bitcheckStart = 31;
-        // //Scan Product ID
-        // for( uint32_t i = 0; i < 32; i++ )
-        // {
-        // for( int j = 1; j < 5; j++ )
-        //     lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.productCode >> (j - 1)*8) );         
-            
-        //     lssMstrMsg.data[BITCHECK] = bitcheckStart - i;
-        //     //Write LSS Identify  msg
-        //     writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        //     //Wait 10ms for response
-        //     readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);
-            
-        //     // If we don't get response we know current Bitcheck bit is 1
-        //     if( readBytes < 0 )
-        //     {
-        //         id.productCode |= (1UL << i);
-        //     }   
-        // }
 
-        // lssNext++;
-        // printf("Found Prod code: 0x%X\n", id.productCode);
-        // lssMstrMsg.data[LSS_NEXT] = lssNext;
-        // for( int j = 1; j < 5; j++ )
-        //     lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.productCode >> (j - 1)*8) ); 
-
-        // //Write whole PC and nextSub
-        // writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        // //Wait 10ms for response
-        // readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);        
-        
-        // lssSub++;
-        // lssMstrMsg.data[LSS_SUB] = lssSub;
         findLSSPart(canSock, &id.revision, &lssSub, &lssNext);
-        printf("%d, %d\n",lssNext, lssSub);
-        // id.revision = 0;
-        // bitcheckStart = 31;
-        // //Scan Revision ID
-        // for( uint32_t i = 0; i < 32; i++ )
-        // {
-        //     for( int j = 1; j < 5; j++ )
-        //         lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.revision >> (j - 1)*8) ); 
 
-        //     lssMstrMsg.data[BITCHECK] = bitcheckStart - i;
-        //     //Write LSS Identify  msg
-        //     writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        //     //Wait 10ms for response
-        //     readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);
-            
-        //     // If we don't get response we know current Bitcheck bit is 1
-        //     if( readBytes < 0 )
-        //     {
-        //         id.revision |= (1UL << i);
-        //     }   
-        // }
-
-        // lssNext++;
-        // printf("Found Rev: 0x%X\n", id.revision);
-        // lssMstrMsg.data[LSS_NEXT] = lssNext;
-        // for( int j = 1; j < 5; j++ )
-        //     lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.revision >> (j - 1)*8) ); 
-
-        // //Write whole PC and nextSub
-        // writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        // //Wait 10ms for response
-        // readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);        
-        
-        // lssSub++;
-        // lssMstrMsg.data[LSS_SUB] = lssSub;
         findLSSPart(canSock, &id.serialNum, &lssSub, &lssNext);
-
-        // id.serialNum = 0;
-        // bitcheckStart = 31;
-        // //Scan Serial Number
-        // for( uint32_t i = 0; i < 32; i++ )
-        // {
-        //     for( int j = 1; j < 5; j++ )
-        //         lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.serialNum >> (j - 1)*8) ); 
-
-        //     lssMstrMsg.data[BITCHECK] = bitcheckStart - i;
-        //     //Write LSS Identify  msg
-        //     writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        //     //Wait 10ms for response
-        //     readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);
-            
-        //     // If we don't get response we know current Bitcheck bit is 1
-        //     if( readBytes < 0 )
-        //     {
-        //         id.serialNum |= (1UL << i);
-        //     }   
-        // }
-        // for( int i = 1; i < 5; i++ )
-        //     lssMstrMsg.data[i] = (uint8_t)( id.serialNum >> (i - 1) );
-
-        //Set lssNext to 0, this signals to slave it should be set to lss config
-        // lssNext = 0;
-        // printf("Found serial: 0x%X\n", id.serialNum);
-        // lssMstrMsg.data[LSS_NEXT] = lssNext;
-        // for( int j = 1; j < 5; j++ )
-        //     lssMstrMsg.data[j] = (uint8_t)( 0xFF & (id.serialNum >> (j - 1)*8) ); 
-
-        // //Write whole PC and nextSub
-        // writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        // //Wait 10ms for response
-        // readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);   
 
         // clear can frame
         for( int i = 0; i < 8; i++)
@@ -335,6 +247,10 @@ int fastScan(int canSock, uint8_t nodeId)
         
         
     }
+
+    return 0;
+
+    
 }
 
 

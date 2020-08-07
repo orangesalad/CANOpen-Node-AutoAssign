@@ -40,31 +40,33 @@ int main(void)
     canOpenInit();
 
     // Put all slave nodes into NMT STOPPED state. They must be in this state to use LSS
-    sendNMTState(0, STOPPED);
+    sendNMTState(canSock, 0, STOPPED);
 
     // Put all slaves into LSS Wait state. In this we cannot change slave Node ID but 
     // nodes are ready to perform LSS actions 
-    sendGlobalLSSState(WAIT);
+    sendGlobalLSSState(canSock, WAIT);
 	
 	printf("Starting FastScan...\r\n");
 
-    // Perform algo to identify all slave nodes.
-	int nodesFound = fastScan(canSock, 1);
+	int nodesFound = 0;
+	volatile int currentScanNodes = 1;
+	int i = 1;
+	
+	while( currentScanNodes && i < MAX_SLAVE_NODES )
+	{
+		currentScanNodes = fastScan(canSock, i);
+		if( currentScanNodes )
+		{
+			printf("Found new Node\n");
+			nodesFound++;
+		}
+		i++; 
+	}
+    
+	// Perform algo to identify all slave nodes.
+	//int nodesFound = fastScan(canSock, 1);
 
 	printf( "%d Nodes Found\n", nodesFound);
-
-	
-
-
-
-	// frame.can_id  = 0x123;
-	// frame.can_dlc = 2;
-	// frame.data[0] = 0x11;
-	// frame.data[1] = 0x22;
-
-	// nbytes = write(s, &frame, sizeof(struct can_frame));
-
-	// printf("Wrote %d bytes\n", nbytes);
 	
 	return 0;
 }
