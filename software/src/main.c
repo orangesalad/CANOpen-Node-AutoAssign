@@ -88,11 +88,11 @@ int main(void)
 
 	for( int x = 0; x < nodesFound; x++ )
 	{
-		printf("Node%d:\nVendorID=0x%X\nProd ID=0x%X\nRevision=0x%X\nSN=0x%X\n", \
+		printf("Node %d:\nVendorID=0x%X\nProd ID=0x%X\nRevision=0x%X\nSN=0x%X\n", \
 			x + 1, \
 			slaveNodes[x].vendorId, \
 			slaveNodes[x].productCode, \
-			slaveNodes[x].productCode, \
+			slaveNodes[x].revision, \
 			slaveNodes[x].serialNum);
 	}
 	

@@ -92,63 +92,78 @@ static int sendGlobalLSSIdentify(int sock)
 
 }
 
-static uint32_t findLSSPart(int sock, uint32_t *lssPart, uint8_t *_lssSub, uint8_t *_lssNext)
+static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uint8_t *_lssNext)
 {
     struct can_frame tx;
     struct can_frame rx;
     int writeBytes = 0;
     int readBytes = 0;
     int bitcheckStart = 31;
+    uint32_t part = 0;
 
-    tx.can_id = LSSMasterMessageId;
-    tx.can_dlc = 8;
-    
-    //clear data 
-    for( int i = 0; i < 8; i++ )
-        tx.data[i] = 0;
-
-    tx.data[CS] = 0x81;
-    tx.data[LSS_SUB] = *_lssSub;
-
-    //iterate over bits of lss part
-    for( int i = 0; i < 32; i++ )
-    {
-        tx.data[LSS_NEXT] = *_lssNext;
-
-        for( int j = 1; j < 5; j++ )
-            tx.data[j] = (uint8_t)( 0xFF & ( (*lssPart) >> (j - 1)*8) );
+    for(int n = 0; n < 4; n++)
+    {   
+        part = 0;
+        tx.can_id = LSSMasterMessageId;
+        tx.can_dlc = 8;
         
-        tx.data[BITCHECK] = bitcheckStart - i;
-        //Write LSS Identify msg
-        writeBytes = write(sock, &tx, sizeof( struct can_frame ));
-        //Wait 10ms for response
-        volatile int readBytes = 1;
-        volatile int x = 0;
-        int nodeFound = 0;
-        // read bus but also make sure we flush extra messages
-        while(readBytes > 0 && x < 127)
+        //clear data 
+        for( int i = 0; i < 8; i++ )
+            tx.data[i] = 0;
+
+        tx.data[CS] = 0x81;
+        tx.data[LSS_SUB] = *_lssSub;
+
+        //iterate over bits of lss part
+        for( int i = 0; i < 32; i++ )
         {
-            readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);
-            if( readBytes > 0 )
-                nodeFound = 1;
-            x++;
-        } 
-        // If we don't get response we know current Bitcheck bit is 1
-        if( !nodeFound )// !nodeFound )
-        {
-            *lssPart |= (1UL << i); 
-        }
-        if( bitcheckStart - i == 1 )
-        {
+            tx.data[LSS_NEXT] = *_lssNext;
+
+            for( int j = 1; j < 5; j++ )
+                tx.data[j] = (uint8_t)( 0xFF & ( (part) >> (j - 1)*8) );
             
-            if( *_lssSub == 3 && *_lssNext == 3)
-                (*_lssNext) = 0;
-            else
-                (*_lssNext)++;  
+            tx.data[BITCHECK] = bitcheckStart - i;
+            //Write LSS Identify msg
+            writeBytes = write(sock, &tx, sizeof( struct can_frame ));
+            //Wait 10ms for response
+            volatile int readBytes = 1;
+            volatile int x = 0;
+            int nodeFound = 0;
+            // read bus but also make sure we flush extra messages
+            while(readBytes > 0 && x < 127)
+            {
+                readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);
+                if( readBytes > 0 )
+                    nodeFound = 1;
+                x++;
+            } 
+            // If we don't get response we know current Bitcheck bit is 1
+            if( !nodeFound )// !nodeFound )
+            {
+                (part) |= (1UL << i); 
+            }
+            if( bitcheckStart - i == 1 )
+            {
+                
+                if( *_lssSub == 3 && *_lssNext == 3)
+                    (*_lssNext) = 0;
+                else
+                    (*_lssNext)++;  
+            }
         }
-    }
+            
+        (*_lssSub)++;
         
-    (*_lssSub)++;
+        if( n == 0 )
+            lssid->vendorId = part;
+        else if( n == 1)
+            lssid->productCode = part;
+        else if( n == 2)
+            lssid->revision = part;
+        else if( n == 3)
+            lssid->serialNum = part;
+    }
+    
     return 0;
 }
 
@@ -206,13 +221,13 @@ int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
         id.serialNum = 0;
 
         // Scan for VID
-        findLSSPart(canSock, &id.vendorId, &lssSub, &lssNext);
-        // Scan for PID
-        findLSSPart(canSock, &id.productCode, &lssSub, &lssNext);
-        // Scan for Rev
-        findLSSPart(canSock, &id.revision, &lssSub, &lssNext);
-        // Scan for SN
-        findLSSPart(canSock, &id.serialNum, &lssSub, &lssNext);
+        findLSSPart(canSock, &id, &lssSub, &lssNext);
+        // // Scan for PID
+        // findLSSPart(canSock, &id.productCode, &lssSub, &lssNext);
+        // // Scan for Rev
+        // findLSSPart(canSock, &id.revision, &lssSub, &lssNext);
+        // // Scan for SN
+        // findLSSPart(canSock, &id.serialNum, &lssSub, &lssNext);
 
         // clear can frame
         for( int i = 0; i < 8; i++)
