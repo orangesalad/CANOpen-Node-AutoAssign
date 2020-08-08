@@ -30,7 +30,8 @@ enum NMTState{
     PRE_OPERATIONAL,
     OPERATIONAL,
     STOPPED,
-    RESET
+    RESET_NODE,
+    RESET_COMM
 };
 
 

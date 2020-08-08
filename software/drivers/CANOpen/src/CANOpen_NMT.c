@@ -48,8 +48,12 @@ void sendNMTState(int sock, unsigned int nodeID, enum NMTState state)
             NMTStateMessage.data[0] = 1;
             break; 
         
-        case RESET:
+        case RESET_NODE:
             NMTStateMessage.data[0] = 0x81;
+            break;
+        
+        case RESET_COMM:
+            NMTStateMessage.data[0] = 0x82;
             break;
         
         default: // Nothing

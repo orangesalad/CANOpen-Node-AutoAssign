@@ -37,6 +37,7 @@
 #include <stdio.h>
 
 #include <errno.h>
+#include <time.h>
 
 
 static int canBusInit(void);
@@ -376,7 +377,7 @@ void LSSConfig(void)
         if( writeBytes < 0 )
             printf("Write error in lss config state\n");  
 
-        printf("New ID Saved. Moving to Pre-Operational\n");
+        printf("New ID %d Saved. Moving to Pre-Operational\n", NodeId);
         actionState = &NMTPreOperational;
         frameValid = 0;
     }    
@@ -404,14 +405,14 @@ void FastScanVID(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // compare lss part and send ack if we have the same value
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -428,14 +429,14 @@ void FastScanVID(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // We have matched lss element, ready to continue
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -476,14 +477,14 @@ void FastScanProdId(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // compare lss part and send ack if we have the same value
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -500,14 +501,14 @@ void FastScanProdId(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // We have matched lss element, ready to continue
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -546,14 +547,14 @@ void FastScanRev(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // compare lss part and send ack if we have the same value
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -570,14 +571,14 @@ void FastScanRev(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // We have matched lss element, ready to continue
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -615,14 +616,14 @@ void FastScanSN(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // compare lss part and send ack if we have the same value
         if( lssCheck == (LSSId[lssSub] & bitmask) )
@@ -640,14 +641,14 @@ void FastScanSN(void)
         uint32_t lssCheck = 0;
 
         // copy the lss partial val we are checking from master
-        for( int i = 1; i < 5; i++)
+        for( int i = 4; i > 0; i--)
             lssCheck |= canRx.data[i] << (i-1)*8;
         
         uint32_t bitmask = 0;
         
         // Construct bitmask to compare with our lss
         for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << i);
+            bitmask |= (1UL << (31 - i));
 
         // We have matched final lss element, go to LSS Config and wait for store command
         if( lssCheck == (LSSId[lssSub] & bitmask) )

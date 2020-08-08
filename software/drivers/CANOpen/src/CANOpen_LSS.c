@@ -92,14 +92,16 @@ static int sendGlobalLSSIdentify(int sock)
 
 }
 
-static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uint8_t *_lssNext)
+static uint32_t findLSSPart(int sock, struct LSSId *lssid)
 {
     struct can_frame tx;
     struct can_frame rx;
     int writeBytes = 0;
     volatile int readBytes = 0;
-    int bitcheckStart = 31;
     uint32_t part = 0;
+
+    uint8_t lssSub = 0;
+    uint8_t lssNext = 0;
 
     volatile int x = 0;
     int nodeFound = 0;
@@ -115,17 +117,17 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
             tx.data[i] = 0;
 
         tx.data[CS] = 0x81;
-        tx.data[LSS_SUB] = *_lssSub;
+        tx.data[LSS_SUB] = lssSub;
 
         //iterate over bits of lss part
-        for( int i = 0; i < 32; i++ )
+        for( int i = 31; i >= 0; i-- )
         {
-            tx.data[LSS_NEXT] = *_lssNext;
+            tx.data[LSS_NEXT] = lssNext;
 
             for( int j = 1; j < 5; j++ )
                 tx.data[j] = (uint8_t)( 0xFF & ( (part) >> (j - 1)*8) );
             
-            tx.data[BITCHECK] = bitcheckStart - i;
+            tx.data[BITCHECK] = i;
             //Write LSS Identify msg
             writeBytes = write(sock, &tx, sizeof( struct can_frame ));
             //Wait 10ms for response
@@ -141,22 +143,24 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
                 x++;
             } 
             // If we don't get response we know current Bitcheck bit is 1
-            if( !nodeFound )// !nodeFound )
+            if( !nodeFound )
             {
-                (part) |= (1UL << (31 - i)); 
+                (part) |= (1UL << i); 
             }
         }
 
-        if( *_lssSub == 3 && *_lssNext == 3)
-            (*_lssNext) = 0;
+        // Change LSS Check indicies
+        if( lssSub == 3 && lssNext == 3)
+            lssNext = 0;
         else
-            (*_lssNext)++;  
+            lssNext++;  
 
-        tx.data[LSS_NEXT] = *_lssNext;
-
+        tx.data[LSS_NEXT] = lssNext;
+        // Add LSS data for final check
         for( int j = 1; j < 5; j++ )
             tx.data[j] = (uint8_t)( 0xFF & ( (part) >> (j - 1)*8) );
         
+        //Check all bits
         tx.data[BITCHECK] = 0;
         //Write LSS Identify msg
         writeBytes = write(sock, &tx, sizeof( struct can_frame ));
@@ -172,10 +176,9 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
                 nodeFound = 1;
             x++;
         }
-
-
-        (*_lssSub)++;
-        
+        // Move onto next LSS part
+        lssSub++;
+        //Assign found value to correct LSS part
         if( n == 0 )
             lssid->vendorId = part;
         else if( n == 1)
@@ -242,14 +245,8 @@ int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
         id.revision = 0;
         id.serialNum = 0;
 
-        // Scan for VID
-        findLSSPart(canSock, &id, &lssSub, &lssNext);
-        // // Scan for PID
-        // findLSSPart(canSock, &id.productCode, &lssSub, &lssNext);
-        // // Scan for Rev
-        // findLSSPart(canSock, &id.revision, &lssSub, &lssNext);
-        // // Scan for SN
-        // findLSSPart(canSock, &id.serialNum, &lssSub, &lssNext);
+        // Scan for LSS Id
+        findLSSPart(canSock, &id);
 
         // clear can frame
         for( int i = 0; i < 8; i++)
@@ -299,6 +296,4 @@ int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
     }
 
     return 0;
-
-    
 }

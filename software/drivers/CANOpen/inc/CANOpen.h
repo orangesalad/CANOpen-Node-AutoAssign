@@ -27,4 +27,11 @@
 
 void canOpenInit(void);
 
+struct canMessage
+{
+    uint16_t canID;
+    uint8_t dlc;
+    uint8_t data[8];
+};
+
 #endif
