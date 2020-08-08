@@ -66,7 +66,7 @@ void sendGlobalLSSState(int sock, enum LSSState state);
  * @param id LSSId struct wheich the found params will be copied
  * @param canSock CAN Socket
  * @param nodeId Node ID we wish to assign the found Node
- * @return int 
+ * @return int 1 if node is found, 0 otherwise
  */
 int fastScan(struct LSSId *id, int canSock, uint8_t nodeId);
 

@@ -70,7 +70,7 @@ int main(void)
 	printf("Starting FastScan...\r\n");
 
 	int nodesFound = 0;
-	volatile int currentScanNodes = 1;
+	int currentScanNodes = 1;
 	int i = 1;
 	
 	while( currentScanNodes && i < MAX_SLAVE_NODES )

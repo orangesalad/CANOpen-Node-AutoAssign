@@ -49,9 +49,110 @@ enum LSS_PART{
     SN
 };
 
-static uint32_t scanVid( struct can_frame *f );
-
 static uint16_t LSSMasterMessageId = 0x7E5; 
+
+static uint32_t findLSSPart(int sock, struct LSSId *lssid);
+static int sendGlobalLSSIdentify(int sock);
+
+void sendGlobalLSSState(int sock, enum LSSState state)
+{
+    struct can_frame f;
+    
+    f.can_id = LSSMasterMessageId;
+    f.can_dlc = 8;
+    // zero data
+    for( int i = 0; i < 8; i++)
+        f.data[i] = 0;
+    
+
+    f.data[0] = 4;
+
+    if( state == WAIT )
+        f.data[1] = 0;
+    else //Config mode
+        f.data[1] = 1;
+
+    int writeBytes = write(sock, &f, sizeof( struct can_frame ));
+
+
+}
+
+int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
+{
+    struct can_frame readFrame;
+    // Frame structure: B0:0x81, B1-4:ID#, B5:BitMask
+    //                  B6:LSSSub, B7:LSSNext 
+    struct can_frame lssMstrMsg;
+    lssMstrMsg.can_id = LSSMasterMessageId;
+    lssMstrMsg.can_dlc = 8;
+    int writeBytes = 0;
+    int readBytes = 0;
+    
+    // Send lss identify and check for response
+    if( sendGlobalLSSIdentify(canSock) ) 
+    {
+        struct LSSId id;
+        uint8_t lssSub = 0;
+        uint8_t lssNext = 0;
+
+        id.vendorId = 0;
+        id.productCode = 0;
+        id.revision = 0;
+        id.serialNum = 0;
+
+        // Scan for LSS Id
+        findLSSPart(canSock, &id);
+
+        // clear can frame
+        for( int i = 0; i < 8; i++)
+            lssMstrMsg.data[i] = 0;
+
+        //slave node now in lss config mode ready to accpt new node ID
+        //CS is 0x11 for assign node ID
+        lssMstrMsg.data[CS] = 0x11;
+        lssMstrMsg.data[1] = nodeId;
+        //Send update Node ID Message
+        writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
+        //Wait 10ms for response
+        readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);   
+        if( readBytes < 0 )
+            return 0;
+
+        //Node ID Assign Successful
+        if( readFrame.data[0] == 0x11 && readFrame.data[1] == 0)
+        {
+            // store ID on remote node in non-volatile, CS = 0x17
+            lssMstrMsg.data[CS] = 0x17;
+            lssMstrMsg.data[1] = 0;
+
+            //Send store
+            writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
+            //Wait 10ms for response
+            readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);   
+            // timeout
+            if( readBytes < 0 )
+                return 0;            
+            // Store was successful
+            if( readFrame.data[0] == 0x17 && readFrame.data[1] == 0)
+            {
+                // set all lss nodes back to operational
+                lssMstrMsg.data[CS] = 0x4;
+                //Send store
+                writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
+                
+                _id->vendorId = id.vendorId;
+                _id->productCode = id.productCode;
+                _id->revision = id.revision;
+                _id->serialNum = id.serialNum; 
+                
+                return 1;
+            }
+        } 
+    }
+
+    return 0;
+}
+
 
 static int sendGlobalLSSIdentify(int sock)
 {
@@ -69,8 +170,8 @@ static int sendGlobalLSSIdentify(int sock)
     //Send initial Slave Identify msg
     int writeBytes = write(sock, &lssGlobalIdent, sizeof( struct can_frame ));
     // wait 10ms for response from slaves
-    volatile int readBytes = 1;
-    volatile int i = 0;
+    int readBytes = 1;
+    int i = 0;
     int nodeFound = 0;
     // read bus but also make sure we flush extra messages
     while(readBytes > 0 && i < 127)
@@ -97,13 +198,13 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid)
     struct can_frame tx;
     struct can_frame rx;
     int writeBytes = 0;
-    volatile int readBytes = 0;
+    int readBytes = 0;
     uint32_t part = 0;
 
     uint8_t lssSub = 0;
     uint8_t lssNext = 0;
 
-    volatile int x = 0;
+    int x = 0;
     int nodeFound = 0;
 
     for(int n = 0; n < 4; n++)
@@ -119,7 +220,7 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid)
         tx.data[CS] = 0x81;
         tx.data[LSS_SUB] = lssSub;
 
-        //iterate over bits of lss part
+        // iterate over bits of lss part
         for( int i = 31; i >= 0; i-- )
         {
             tx.data[LSS_NEXT] = lssNext;
@@ -189,111 +290,5 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid)
             lssid->serialNum = part;
     }
     
-    return 0;
-}
-
-void sendGlobalLSSState(int sock, enum LSSState state)
-{
-    struct can_frame f;
-    
-    f.can_id = LSSMasterMessageId;
-    f.can_dlc = 8;
-    // zero data
-    for( int i = 0; i < 8; i++)
-        f.data[i] = 0;
-    
-
-    f.data[0] = 4;
-
-    if( state == WAIT )
-        f.data[1] = 0;
-    else //Config mode
-        f.data[1] = 1;
-
-    int writeBytes = write(sock, &f, sizeof( struct can_frame ));
-
-
-}
-
-int fastScan(struct LSSId *_id, int canSock, uint8_t nodeId)
-{
-    struct can_frame readFrame;
-    // Frame structure: B0:0x81, B1-4:ID#, B5:BitMask
-    //                  B6:LSSSub, B7:LSSNext 
-    struct can_frame lssMstrMsg;
-    lssMstrMsg.can_id = LSSMasterMessageId;
-    lssMstrMsg.can_dlc = 8;
-    int writeBytes = 0;
-    int readBytes = 0;
-    
-    // Send lss identify and check for response
-    if( sendGlobalLSSIdentify(canSock) ) 
-    {
-        struct LSSId id;
-        uint8_t lssSub = 0;
-        uint8_t lssNext = 0;
-
-        //Create list of vendor ID's that we find, there could only be 127 max
-        //but will likely be less 
-        uint32_t validVendorIds[127] = {0};
-        int numVidFound = 0;
-
-        int bitcheckStart = 31;
-        
-        id.vendorId = 0;
-        id.productCode = 0;
-        id.revision = 0;
-        id.serialNum = 0;
-
-        // Scan for LSS Id
-        findLSSPart(canSock, &id);
-
-        // clear can frame
-        for( int i = 0; i < 8; i++)
-            lssMstrMsg.data[i] = 0;
-
-        //slave node now in lss config mode ready to accpt new node ID
-        //CS is 0x11 for assign node ID
-        lssMstrMsg.data[CS] = 0x11;
-        lssMstrMsg.data[1] = nodeId;
-        //Send update Node ID Message
-        writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-        //Wait 10ms for response
-        readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);   
-        if( readBytes < 0 )
-            return 0;
-
-        //Node ID Assign Successful
-        if( readFrame.data[0] == 0x11 && readFrame.data[1] == 0)
-        {
-            // store ID on remote node in non-volatile, CS = 0x17
-            lssMstrMsg.data[CS] = 0x17;
-            lssMstrMsg.data[1] = 0;
-
-            //Send store
-            writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-            //Wait 10ms for response
-            readBytes = recv(canSock, &readFrame, sizeof( struct can_frame), 0);   
-            // timeout
-            if( readBytes < 0 )
-                return 0;            
-            // Store was successful
-            if( readFrame.data[0] == 0x17 && readFrame.data[1] == 0)
-            {
-                // set all lss nodes back to operational
-                lssMstrMsg.data[CS] = 0x4;
-                //Send store
-                writeBytes = write(canSock, &lssMstrMsg, sizeof( struct can_frame ));
-                
-                _id->vendorId = id.vendorId;
-                _id->productCode = id.productCode;
-                _id->revision = id.revision;
-                _id->serialNum = id.serialNum; 
-                
-                return 1;
-            }
-        } 
-    }
-
     return 0;
 }
