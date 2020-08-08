@@ -97,9 +97,12 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
     struct can_frame tx;
     struct can_frame rx;
     int writeBytes = 0;
-    int readBytes = 0;
+    volatile int readBytes = 0;
     int bitcheckStart = 31;
     uint32_t part = 0;
+
+    volatile int x = 0;
+    int nodeFound = 0;
 
     for(int n = 0; n < 4; n++)
     {   
@@ -126,9 +129,9 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
             //Write LSS Identify msg
             writeBytes = write(sock, &tx, sizeof( struct can_frame ));
             //Wait 10ms for response
-            volatile int readBytes = 1;
-            volatile int x = 0;
-            int nodeFound = 0;
+            readBytes = 1;
+            x = 0;
+            nodeFound = 0;
             // read bus but also make sure we flush extra messages
             while(readBytes > 0 && x < 127)
             {
@@ -140,18 +143,37 @@ static uint32_t findLSSPart(int sock, struct LSSId *lssid, uint8_t *_lssSub, uin
             // If we don't get response we know current Bitcheck bit is 1
             if( !nodeFound )// !nodeFound )
             {
-                (part) |= (1UL << i); 
-            }
-            if( bitcheckStart - i == 1 )
-            {
-                
-                if( *_lssSub == 3 && *_lssNext == 3)
-                    (*_lssNext) = 0;
-                else
-                    (*_lssNext)++;  
+                (part) |= (1UL << (31 - i)); 
             }
         }
-            
+
+        if( *_lssSub == 3 && *_lssNext == 3)
+            (*_lssNext) = 0;
+        else
+            (*_lssNext)++;  
+
+        tx.data[LSS_NEXT] = *_lssNext;
+
+        for( int j = 1; j < 5; j++ )
+            tx.data[j] = (uint8_t)( 0xFF & ( (part) >> (j - 1)*8) );
+        
+        tx.data[BITCHECK] = 0;
+        //Write LSS Identify msg
+        writeBytes = write(sock, &tx, sizeof( struct can_frame ));
+        //Wait 10ms for response
+        readBytes = 1;
+        x = 0;
+        nodeFound = 0;
+        // read bus but also make sure we flush extra messages
+        while(readBytes > 0 && x < 127)
+        {
+            readBytes = recv(sock, &rx, sizeof( struct can_frame), 0);
+            if( readBytes > 0 )
+                nodeFound = 1;
+            x++;
+        }
+
+
         (*_lssSub)++;
         
         if( n == 0 )

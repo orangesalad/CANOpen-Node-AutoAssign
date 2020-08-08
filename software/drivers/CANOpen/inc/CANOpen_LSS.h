@@ -28,11 +28,19 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+/**
+ * @brief Layer Setting Services States
+ * 
+ */
 enum LSSState{
     WAIT,
     CONFIGURATION
 };
 
+/**
+ * @brief 128-Bit device unique Layer Setting Service ID
+ * 
+ */
 struct LSSId {
 
     uint32_t vendorId;
@@ -42,8 +50,24 @@ struct LSSId {
 
 };
 
+/**
+ * @brief Change the LSS State of all devices, can only 
+ *        be used when device is in NMT Stopped State
+ * 
+ * @param sock CAN Socket
+ * @param state Desired state to enter
+ */
 void sendGlobalLSSState(int sock, enum LSSState state);
 
+/**
+ * @brief Perform LSS Fastscan to identify 1 unconfigured  
+ *        node on the bus
+ * 
+ * @param id LSSId struct wheich the found params will be copied
+ * @param canSock CAN Socket
+ * @param nodeId Node ID we wish to assign the found Node
+ * @return int 
+ */
 int fastScan(struct LSSId *id, int canSock, uint8_t nodeId);
 
 #endif
