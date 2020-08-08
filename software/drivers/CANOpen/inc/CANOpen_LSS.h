@@ -28,6 +28,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+
 /**
  * @brief Layer Setting Services States
  * 
