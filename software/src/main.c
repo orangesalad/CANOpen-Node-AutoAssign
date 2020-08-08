@@ -19,23 +19,6 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-
-#include <net/if.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-
-#include <linux/can.h>
-#include <linux/can/raw.h>
-
-#include <stdint.h>
-#include <stdio.h>
-
 #include "main.h"
 
 
