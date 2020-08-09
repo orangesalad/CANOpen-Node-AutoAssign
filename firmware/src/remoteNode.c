@@ -75,10 +75,7 @@ void LSSWait(void);
 void LSSConfig(void);
 
 /* FastScan States */
-void FastScanVID(void);
-void FastScanProdId(void);
-void FastScanRev(void);
-void FastScanSN(void);
+void FastScan(void);
 
 ///fxn pointer for current state
 void (*actionState)(void);
@@ -88,7 +85,8 @@ volatile int canSock = 0;
 
 enum FastScanMessageType{
     NO_STATE_TRANSITION, 
-    FINAL_LSS_PART_CHECK
+    FINAL_LSS_PART_CHECK,
+    LSS_MESSAGE_UNKNOWN
 };
 
 static enum FastScanMessageType interpretFastScanMessage(struct can_frame *rcv);
@@ -120,6 +118,7 @@ int main(void)
     while(1)
     {
         (*actionState)();
+        // Read CAN socket in non-blocking
         readBytes = recv(canSock, &canRx, sizeof( struct can_frame), 0);
         if( readBytes > 0 )
             frameValid = 1; 
@@ -341,7 +340,7 @@ void LSSConfig(void)
             printf("Write error in lss config state\n");
         
         frameValid = 0;
-        actionState = &FastScanVID;
+        actionState = &FastScan;
         printf("Moving to FastCan VID\n");
 
     }
@@ -393,7 +392,7 @@ void LSSConfig(void)
 }
 
 /*********************** FastScan States ***********************/
-void FastScanVID(void)
+void FastScan(void)
 {
     struct can_frame lssResponse;
     lssResponse.can_id = 0x7E4;
@@ -415,7 +414,7 @@ void FastScanVID(void)
         {
             processLssCheck( &canRx );
         }
-        else
+        else if( lssType == FINAL_LSS_PART_CHECK )
         {
             finalCheckMatches = processLssFinalCheck( &canRx );
             
@@ -423,8 +422,11 @@ void FastScanVID(void)
             {
                 //ack to master
                 writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-                actionState = &FastScanProdId;
-                printf("Moving to Fastscan Prod Id\n");
+                //actionState = &FastScanProdId;
+                printf("Matched Value %d\n", canRx.data[6]);
+                // Matched Serial Num, final state
+                if( canRx.data[6] == 3 && canRx.data[7] == 0 )
+                    actionState = &LSSConfig;
             }// This is not the right lss element, go to LSS Wait
             else
             {
@@ -438,140 +440,15 @@ void FastScanVID(void)
     }
 
 }
-void FastScanProdId(void)
-{
-    struct can_frame lssResponse;
-    lssResponse.can_id = 0x7E4;
-    lssResponse.can_dlc = 8;
-
-    //zero data
-    for(int i =0; i < 8; i++)
-        lssResponse.data[i] = 0;
-
-    int writeBytes = 0;    
-    
-    int finalCheckMatches = 0;
-
-    if( frameValid )
-    {
-        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
-
-        if( lssType == NO_STATE_TRANSITION )
-        {
-            processLssCheck( &canRx );
-        }
-        else
-        {
-            finalCheckMatches = processLssFinalCheck( &canRx );
-            
-            if( finalCheckMatches )
-            {
-            //ack to master
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-            actionState = &FastScanRev;
-            printf("Moving to Fastscan Rev\n");
-            }// This is not the right lss element, go to LSS Wait
-            else
-            {
-                actionState = &LSSWait;
-            }
-        }
-        
-        frameValid = 0;
-    }
-}
-void FastScanRev(void)
-{
-    struct can_frame lssResponse;
-    lssResponse.can_id = 0x7E4;
-    lssResponse.can_dlc = 8;
-
-    //zero data
-    for(int i =0; i < 8; i++)
-        lssResponse.data[i] = 0;
-
-    int writeBytes = 0;    
-    
-    int finalCheckMatches = 0;
-
-    if( frameValid )
-    {
-        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
-
-        if( lssType == NO_STATE_TRANSITION )
-        {
-            processLssCheck( &canRx );
-        }
-        else
-        {
-            finalCheckMatches = processLssFinalCheck( &canRx );
-            
-            if( finalCheckMatches )
-            {
-                writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-                actionState = &FastScanSN;
-                printf("Moving to Fastscan SN\n");
-            }// This is not the right lss element, go to LSS Wait
-            else
-            {
-                actionState = &LSSWait;
-            }
-        }
-        
-        frameValid = 0;
-    }
-}
-
-void FastScanSN(void)
-{
-    struct can_frame lssResponse;
-    lssResponse.can_id = 0x7E4;
-    lssResponse.can_dlc = 8;
-
-    //zero data
-    for(int i =0; i < 8; i++)
-        lssResponse.data[i] = 0;
-
-    int writeBytes = 0;    
-    
-    int finalCheckMatches = 0;
-
-    if( frameValid )
-    {
-        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
-
-        if( lssType == NO_STATE_TRANSITION )
-        {
-            processLssCheck( &canRx );
-        }
-        else
-        {
-            finalCheckMatches = processLssFinalCheck( &canRx );
-            
-            if( finalCheckMatches )
-            {
-                writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-                actionState = &LSSConfig;
-                printf("Moving to LSS Operational\n");
-            }// This is not the right lss element, go to LSS Wait
-            else
-            {
-                actionState = &LSSWait;
-            }
-        }
-        frameValid = 0;
-    }
-}
 
 static enum FastScanMessageType interpretFastScanMessage(struct can_frame *rcv)
 {
     if( rcv->can_id == 0x7E5 && rcv->data[0] == 0x81 && rcv->data[6] == rcv->data[7])
         return NO_STATE_TRANSITION;
-    else
-    {
+    else if( rcv->can_id == 0x7E5 && rcv->data[0] == 0x81 && rcv->data[6] != rcv->data[7] )
         return FINAL_LSS_PART_CHECK;
-    }
-    
+    else
+        return LSS_MESSAGE_UNKNOWN;    
 }
 
 static void processLssCheck( struct can_frame *lssFrame )
