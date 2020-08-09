@@ -86,6 +86,15 @@ void (*actionState)(void);
 ///Global CAN interface socket for Linux
 volatile int canSock = 0;
 
+enum FastScanMessageType{
+    NO_STATE_TRANSITION, 
+    FINAL_LSS_PART_CHECK
+};
+
+static enum FastScanMessageType interpretFastScanMessage(struct can_frame *rcv);
+static void processLssCheck( struct can_frame *lssFrame );
+static int processLssFinalCheck( struct can_frame *lssFrame );
+
 int main(void)
 {
     time_t t;
@@ -396,65 +405,38 @@ void FastScanVID(void)
 
     int writeBytes = 0;    
     
-    // We recieved a LSS message to check VID
-    if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] == canRx.data[7])
-    {                 
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
+    int finalCheckMatches = 0;
 
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // compare lss part and send ack if we have the same value
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-        
-        frameValid = 0;
-    }
-    // We are recieving last VID check, this is a test of whole VID, this determines if we cont. fastscan
-    else if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] != canRx.data[7])
+    if( frameValid )
     {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
+        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
 
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // We have matched lss element, ready to continue
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
+        if( lssType == NO_STATE_TRANSITION )
         {
-            //ack to master
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-            actionState = &FastScanProdId;
-            printf("Moving to Fastscan Prod Id\n");
-        }// This is not the right lss element, go to LSS Wait
+            processLssCheck( &canRx );
+        }
         else
         {
-            printf("Moving to LSSWait\n");
-            actionState = &LSSWait;
+            finalCheckMatches = processLssFinalCheck( &canRx );
+            
+            if( finalCheckMatches )
+            {
+                //ack to master
+                writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
+                actionState = &FastScanProdId;
+                printf("Moving to Fastscan Prod Id\n");
+            }// This is not the right lss element, go to LSS Wait
+            else
+            {
+                printf("Moving to LSSWait\n");
+                actionState = &LSSWait;
+            }
+
         }
-        
+
         frameValid = 0;
-        
     }
+
 }
 void FastScanProdId(void)
 {
@@ -466,61 +448,33 @@ void FastScanProdId(void)
     for(int i =0; i < 8; i++)
         lssResponse.data[i] = 0;
 
-    int writeBytes = 0;  
+    int writeBytes = 0;    
+    
+    int finalCheckMatches = 0;
 
-    // We recieved a LSS message to check lss element
-    if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] == canRx.data[7])
+    if( frameValid )
     {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
+        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
 
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // compare lss part and send ack if we have the same value
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-        
-        frameValid = 0;
-    }
-    //We are recieving last lss element check, this is a test of whole VID, this determines if we cont. fastscan
-    else if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] != canRx.data[7])
-    {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
-
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // We have matched lss element, ready to continue
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
+        if( lssType == NO_STATE_TRANSITION )
         {
+            processLssCheck( &canRx );
+        }
+        else
+        {
+            finalCheckMatches = processLssFinalCheck( &canRx );
+            
+            if( finalCheckMatches )
+            {
             //ack to master
             writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
             actionState = &FastScanRev;
             printf("Moving to Fastscan Rev\n");
-        }// This is not the right lss element, go to LSS Wait
-        else
-        {
-            actionState = &LSSWait;
+            }// This is not the right lss element, go to LSS Wait
+            else
+            {
+                actionState = &LSSWait;
+            }
         }
         
         frameValid = 0;
@@ -536,66 +490,91 @@ void FastScanRev(void)
     for(int i =0; i < 8; i++)
         lssResponse.data[i] = 0;
 
-    int writeBytes = 0;  
+    int writeBytes = 0;    
+    
+    int finalCheckMatches = 0;
 
-    // We recieved a LSS message to check lss element
-    if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] == canRx.data[7])
+    if( frameValid )
     {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
+        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
 
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // compare lss part and send ack if we have the same value
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-        
-        frameValid = 0;
-    }
-    //We are recieving last lss element check, this is a test of whole VID, this determines if we cont. fastscan
-    else if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] != canRx.data[7])
-    {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
-
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // We have matched lss element, ready to continue
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
+        if( lssType == NO_STATE_TRANSITION )
         {
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-            actionState = &FastScanSN;
-            printf("Moving to Fastscan SN\n");
-        }// This is not the right lss element, go to LSS Wait
+            processLssCheck( &canRx );
+        }
         else
         {
-            actionState = &LSSWait;
+            finalCheckMatches = processLssFinalCheck( &canRx );
+            
+            if( finalCheckMatches )
+            {
+                writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
+                actionState = &FastScanSN;
+                printf("Moving to Fastscan SN\n");
+            }// This is not the right lss element, go to LSS Wait
+            else
+            {
+                actionState = &LSSWait;
+            }
         }
         
         frameValid = 0;
     }
 }
+
 void FastScanSN(void)
+{
+    struct can_frame lssResponse;
+    lssResponse.can_id = 0x7E4;
+    lssResponse.can_dlc = 8;
+
+    //zero data
+    for(int i =0; i < 8; i++)
+        lssResponse.data[i] = 0;
+
+    int writeBytes = 0;    
+    
+    int finalCheckMatches = 0;
+
+    if( frameValid )
+    {
+        enum FastScanMessageType lssType =  interpretFastScanMessage( &canRx );
+
+        if( lssType == NO_STATE_TRANSITION )
+        {
+            processLssCheck( &canRx );
+        }
+        else
+        {
+            finalCheckMatches = processLssFinalCheck( &canRx );
+            
+            if( finalCheckMatches )
+            {
+                writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
+                actionState = &LSSConfig;
+                printf("Moving to LSS Operational\n");
+            }// This is not the right lss element, go to LSS Wait
+            else
+            {
+                actionState = &LSSWait;
+            }
+        }
+        frameValid = 0;
+    }
+}
+
+static enum FastScanMessageType interpretFastScanMessage(struct can_frame *rcv)
+{
+    if( rcv->can_id == 0x7E5 && rcv->data[0] == 0x81 && rcv->data[6] == rcv->data[7])
+        return NO_STATE_TRANSITION;
+    else
+    {
+        return FINAL_LSS_PART_CHECK;
+    }
+    
+}
+
+static void processLssCheck( struct can_frame *lssFrame )
 {
     struct can_frame lssResponse;
     lssResponse.can_id = 0x7E4;
@@ -607,61 +586,64 @@ void FastScanSN(void)
 
     int writeBytes = 0; 
 
-    // We recieved a LSS message to check lss element
-    if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] == canRx.data[7])
+    // get currrent and next lss state checks
+    uint8_t lssSub = lssFrame->data[6];
+    uint8_t bitCheck = lssFrame->data[5];
+    uint32_t lssCheck = 0;
+
+    // copy the lss partial val we are checking from master
+    for( int i = 4; i > 0; i--)
+        lssCheck |= lssFrame->data[i] << (i-1)*8;
+    
+    uint32_t bitmask = 0;
+    
+    // Construct bitmask to compare with our lss
+    for( int i = 0; i < 32 - bitCheck; i++)
+        bitmask |= (1UL << (31 - i));
+
+    // compare lss part and send ack if we have the same value
+    if( lssCheck == (LSSId[lssSub] & bitmask) )
+        writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
+    
+}
+
+static int processLssFinalCheck( struct can_frame *lssFrame )
+{
+    int moveToNextState = 0;
+
+    struct can_frame lssResponse;
+    lssResponse.can_id = 0x7E4;
+    lssResponse.can_dlc = 8;
+
+    //zero data
+    for(int i =0; i < 8; i++)
+        lssResponse.data[i] = 0;
+
+    int writeBytes = 0; 
+
+    // get currrent and next lss state checks
+    uint8_t lssSub = lssFrame->data[6];
+    uint8_t bitCheck = lssFrame->data[5];
+    uint32_t lssCheck = 0;
+
+    // copy the lss partial val we are checking from master
+    for( int i = 4; i > 0; i--)
+        lssCheck |= lssFrame->data[i] << (i-1)*8;
+    
+    uint32_t bitmask = 0;
+    
+    // Construct bitmask to compare with our lss
+    for( int i = 0; i < 32 - bitCheck; i++)
+        bitmask |= (1UL << (31 - i));
+
+    // We have matched final lss element, go to LSS Config and wait for store command
+    if( lssCheck == (LSSId[lssSub] & bitmask) )
     {
-        // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
+        writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
+        moveToNextState = 1;
+        //actionState = &LSSConfig;
+        //printf("Moving to LSS Operational\n");
+    }// This is not the right lss element, go to LSS Wait
 
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // compare lss part and send ack if we have the same value
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-        
-        frameValid = 0;
-    }
-    //We are recieving last lss element check, this is a test of whole VID, this determines if we cont. fastscan
-    else if( frameValid && canRx.can_id == 0x7E5 && canRx.data[0] == 0x81 && canRx.data[6] != canRx.data[7])
-    {
-
-         // get currrent and next lss state checks
-        uint8_t lssSub = canRx.data[6];
-        uint8_t bitCheck = canRx.data[5];
-        uint32_t lssCheck = 0;
-
-        // copy the lss partial val we are checking from master
-        for( int i = 4; i > 0; i--)
-            lssCheck |= canRx.data[i] << (i-1)*8;
-        
-        uint32_t bitmask = 0;
-        
-        // Construct bitmask to compare with our lss
-        for( int i = 0; i < 32 - bitCheck; i++)
-            bitmask |= (1UL << (31 - i));
-
-        // We have matched final lss element, go to LSS Config and wait for store command
-        if( lssCheck == (LSSId[lssSub] & bitmask) )
-        {
-            writeBytes = write(canSock, &lssResponse, sizeof( struct can_frame ));
-            actionState = &LSSConfig;
-            printf("Moving to LSS Operational\n");
-        }// This is not the right lss element, go to LSS Wait
-        else
-        {
-            actionState = &LSSWait;
-        }
-        
-        frameValid = 0;
-    }
+    return moveToNextState;
 }

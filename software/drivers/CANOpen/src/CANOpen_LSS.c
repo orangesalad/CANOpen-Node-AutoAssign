@@ -22,10 +22,6 @@
 
 #include "CANOpen_LSS.h"
 
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-
 // LSSSub/Next defines
 #define VENDOR_ID   0
 #define PROD_CODE   1
