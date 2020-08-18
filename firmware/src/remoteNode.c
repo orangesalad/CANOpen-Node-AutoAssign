@@ -99,7 +99,7 @@ int main(void)
     srand((unsigned) time(&t));
 
     // create random LSSid for demonstration
-    vid = rand(); 
+    vid = 0xFFFFFFFF; //rand(); 
     pid = rand(); 
     rev = rand(); 
     sn = rand(); 

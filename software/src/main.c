@@ -54,14 +54,14 @@ int main(void)
 
 	int nodesFound = 0;
 	int currentScanNodes = 1;
-	int i = 1;
+	int i = 0;
 	
 	while( currentScanNodes && i < MAX_SLAVE_NODES )
 	{
-		currentScanNodes = fastScan(&slaveNodes[i - 1], canSock, i);
+		currentScanNodes = fastScan(&slaveNodes[i], canSock, i + 1);
 		if( currentScanNodes )
 		{
-			printf("Found new Node. Assigned ID: %d\n", i);
+			printf("Found new Node. Assigned ID: %d\n", i + 1);
 			nodesFound++;
 		}
 		i++; 
